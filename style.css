@@ -70,7 +70,6 @@ canvas {
   flex-direction: column;
   gap: 10px;
   color: white;
-  font-family: monospace;
   border-radius: 0 0 10px 10px;
   z-index: 9;
 }
@@ -85,3 +84,4 @@ input, select {
   border: 1px solid white;
   border-radius: 5px;
 }
+
