@@ -10,7 +10,7 @@
   <div id="intro-screen">
     <div id="intro-text">
       <h1>The Mind Bloom</h1>
-      <p>A fully audio-reactive visual trip. Best experienced with headphones.</p>
+      <p>A continuous, audio-reactive, morphing visual experience.<br>Click to begin the trip.</p>
       <button id="startBtn">Start Experience</button>
     </div>
   </div>
@@ -21,27 +21,25 @@
 
   <div id="ui-toggle">&#9662;</div>
   <div id="config-panel">
-    <label>Theme:
-      <select id="themeSelect">
-        <option value="vortex">Vortex</option>
-        <option value="waves">Waves</option>
-        <option value="plasma">Plasma</option>
-        <option value="spiral">Spiral</option>
-        <option value="netgrid">Net Grid</option>
+    <label>Speed: <input type="range" id="speedSlider" min="0.1" max="5" step="0.1"></label>
+    <label>Color Intensity: <input type="range" id="colorSlider" min="0.5" max="3" step="0.1"></label>
+    <label>Resolution: <input type="range" id="resSlider" min="1" max="10" step="1"></label>
+    <label>Phase Duration (s): <input type="range" id="phaseDuration" min="5" max="60" step="1"></label>
+    <label>Phase Mode:
+      <select id="phaseMode">
+        <option value="auto">Auto</option>
+        <option value="manual">Manual</option>
+        <option value="procedural">Procedural</option>
       </select>
     </label>
-    <label>Speed:
-      <input type="range" id="speedSlider" min="0.1" max="5" step="0.1">
+    <label>Current Phase:
+      <select id="phaseSelector"></select>
     </label>
-    <label>Color Intensity:
-      <input type="range" id="colorSlider" min="0.5" max="3" step="0.1">
-    </label>
-    <label>Resolution (lower = faster):
-      <input type="range" id="resSlider" min="1" max="10" step="1">
-    </label>
+    <label><input type="checkbox" id="debugToggle"> Debug Mode</label>
   </div>
 
   <script src="script.js"></script>
 </body>
 </html>
+
 
