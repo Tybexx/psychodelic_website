@@ -1,65 +1,100 @@
 const canvas = document.getElementById("psyCanvas");
 const ctx = canvas.getContext("2d");
 let width, height, time = 0;
-
+resize();
+window.addEventListener("resize", resize);
 function resize() {
   width = canvas.width = window.innerWidth;
   height = canvas.height = window.innerHeight;
 }
-window.addEventListener("resize", resize);
-resize();
 
 // UI
-document.getElementById("ui-toggle").addEventListener("click", () => {
-  const panel = document.getElementById("config-panel");
-  panel.style.display = (panel.style.display === "flex") ? "none" : "flex";
-});
-const themeSelect = document.getElementById("themeSelect");
-const speedSlider = document.getElementById("speedSlider");
-const colorSlider = document.getElementById("colorSlider");
-const resSlider = document.getElementById("resSlider");
+const config = {
+  speed: 1,
+  color: 1,
+  res: 4,
+  duration: 20,
+  mode: 'auto',
+  debug: false
+};
 
-function loadSettings() {
-  themeSelect.value = localStorage.getItem("theme") || "vortex";
-  speedSlider.value = localStorage.getItem("speed") || "1";
-  colorSlider.value = localStorage.getItem("color") || "1";
-  resSlider.value = localStorage.getItem("res") || "4";
-}
-function saveSettings() {
-  localStorage.setItem("theme", themeSelect.value);
-  localStorage.setItem("speed", speedSlider.value);
-  localStorage.setItem("color", colorSlider.value);
-  localStorage.setItem("res", resSlider.value);
-}
-[themeSelect, speedSlider, colorSlider, resSlider].forEach(el =>
-  el.addEventListener("input", saveSettings)
-);
-loadSettings();
+const controls = {
+  speed: document.getElementById("speedSlider"),
+  color: document.getElementById("colorSlider"),
+  res: document.getElementById("resSlider"),
+  duration: document.getElementById("phaseDuration"),
+  mode: document.getElementById("phaseMode"),
+  phase: document.getElementById("phaseSelector"),
+  debug: document.getElementById("debugToggle")
+};
+
+document.getElementById("ui-toggle").onclick = () => {
+  const p = document.getElementById("config-panel");
+  p.style.display = p.style.display === "flex" ? "none" : "flex";
+};
+
+// Update from UI
+Object.keys(controls).forEach(key => {
+  controls[key].oninput = () => {
+    if (key === "debug") config.debug = controls.debug.checked;
+    else config[key] = controls[key].value;
+    localStorage.setItem("tripConfig", JSON.stringify(config));
+  };
+});
+
+// Load settings
+const saved = JSON.parse(localStorage.getItem("tripConfig") || "{}");
+Object.assign(config, saved);
+controls.speed.value = config.speed;
+controls.color.value = config.color;
+controls.res.value = config.res;
+controls.duration.value = config.duration;
+controls.mode.value = config.mode;
+controls.debug.checked = config.debug;
+
+// PHASE ENGINE
+const phases = [
+  { name: "Spiral Bloom", fn: (x, y, a, d, t) =>
+    [Math.sin(d * 0.05 - a + t), Math.cos(a + t * 0.5), Math.sin(d * 0.01 + a + t)] },
+  { name: "Waveline Grid", fn: (x, y, a, d, t) =>
+    [Math.sin(x * 0.01 + t), Math.sin(y * 0.01 + t), Math.sin((x + y) * 0.01 + t)] },
+  { name: "Plasma Flux", fn: (x, y, a, d, t) => {
+    const v = Math.sin(x * 0.02 + t) + Math.sin(y * 0.02 + t);
+    return [Math.sin(v + t), Math.sin(v + t * 1.2), Math.sin(v + t * 1.4)];
+  }},
+  { name: "Net Pulse", fn: (x, y, a, d, t) =>
+    [Math.sin((x + y + t * 100) * 0.01), Math.sin((x - y + t * 50) * 0.01), Math.cos((x * y + t * 25) * 0.00005)] }
+];
+
+phases.forEach((p, i) => {
+  const opt = document.createElement("option");
+  opt.value = i;
+  opt.textContent = p.name;
+  controls.phase.appendChild(opt);
+});
+
+let current = 0;
+let next = 1;
+let transition = 0;
+let lastSwitch = 0;
 
 // AUDIO
+let analyser, dataArray, bass = 0, mids = 0, highs = 0;
 const audio = document.getElementById("bgAudio");
-const startBtn = document.getElementById("startBtn");
-const introScreen = document.getElementById("intro-screen");
+const intro = document.getElementById("intro-screen");
 
-let analyser, dataArray;
-let bass = 0, mids = 0, highs = 0;
-
-startBtn.addEventListener("click", async () => {
-  introScreen.style.display = "none";
-  try {
-    await audio.play();
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaElementSource(audio);
-    analyser = audioCtx.createAnalyser();
-    source.connect(analyser);
-    analyser.connect(audioCtx.destination);
-    analyser.fftSize = 128;
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
-    updateAudio();
-  } catch (e) {
-    alert("Audio failed to start: " + e);
-  }
-});
+document.getElementById("startBtn").onclick = async () => {
+  intro.style.display = "none";
+  await audio.play();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = audioCtx.createMediaElementSource(audio);
+  analyser = audioCtx.createAnalyser();
+  src.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  analyser.fftSize = 128;
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+  updateAudio();
+};
 
 function updateAudio() {
   if (!analyser) return;
@@ -73,14 +108,27 @@ function updateAudio() {
 
 // DRAW
 function animate() {
-  time += 0.01 * parseFloat(speedSlider.value);
-  const res = parseInt(resSlider.value);
+  time += 0.01 * parseFloat(config.speed);
+  const res = parseInt(config.res);
   const cw = Math.floor(width / res);
   const ch = Math.floor(height / res);
   const img = ctx.createImageData(cw, ch);
   const data = img.data;
-  const colorMod = parseFloat(colorSlider.value);
-  const theme = themeSelect.value;
+
+  if (config.mode === "auto" && performance.now() - lastSwitch > config.duration * 1000) {
+    current = next;
+    do { next = Math.floor(Math.random() * phases.length); } while (next === current);
+    lastSwitch = performance.now();
+    transition = 0;
+    if (config.debug) console.log(`Switching to phase: ${phases[current].name}`);
+  }
+
+  if (config.mode === "manual") {
+    current = parseInt(controls.phase.value);
+    next = current;
+  }
+
+  transition = Math.min(1, (performance.now() - lastSwitch) / 1000);
 
   for (let y = 0; y < ch; y++) {
     for (let x = 0; x < cw; x++) {
@@ -91,43 +139,19 @@ function animate() {
       const dy = py - height / 2;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const angle = Math.atan2(dy, dx);
-      let r = 0, g = 0, b = 0;
+      const t = time + bass * 5;
 
-      switch (theme) {
-        case "vortex":
-          r = 128 + 127 * Math.sin(dist * (0.02 + bass * 0.05) - time);
-          g = 128 + 127 * Math.cos(angle * (3 + mids * 5) + time);
-          b = 128 + 127 * Math.sin(dist * (0.01 + highs * 0.03) + time);
-          break;
-        case "waves":
-          r = 128 + 127 * Math.sin(px * 0.01 + time + mids * 10);
-          g = 128 + 127 * Math.sin(py * 0.01 + time * 1.5);
-          b = 128 + 127 * Math.sin((px + py) * 0.01 + time + bass * 3);
-          break;
-        case "plasma":
-          const v = Math.sin(px * (0.02 + highs * 0.05) + time)
-                  + Math.sin(py * (0.02 + mids * 0.03) + time);
-          r = 128 + 127 * Math.sin(v + time + bass * 3);
-          g = 128 + 127 * Math.sin(v + time * 1.3);
-          b = 128 + 127 * Math.sin(v + time * 1.6 + highs * 2);
-          break;
-        case "spiral":
-          let rad = dist;
-          let a = angle + time;
-          r = 128 + 127 * Math.sin(rad * (0.05 + bass) - a + mids * 3);
-          g = 128 + 127 * Math.cos(rad * 0.03 + a + time);
-          b = 128 + 127 * Math.sin(rad * 0.01 + a - time + highs * 2);
-          break;
-        case "netgrid":
-          r = 128 + 127 * Math.sin((px + py + time * 100) * 0.01 + bass * 3);
-          g = 128 + 127 * Math.sin((px - py + time * 50) * 0.01 + mids * 5);
-          b = 128 + 127 * Math.cos((px * py + time * 25) * 0.00005 + highs * 4);
-          break;
-      }
+      const p1 = phases[current].fn(px, py, angle, dist, t);
+      const p2 = phases[next].fn(px, py, angle, dist, t);
+      const mix = (a, b) => a * (1 - transition) + b * transition;
 
-      data[i] = r * colorMod;
-      data[i + 1] = g * colorMod;
-      data[i + 2] = b * colorMod;
+      const r = 128 + 127 * mix(p1[0], p2[0]) * config.color;
+      const g = 128 + 127 * mix(p1[1], p2[1]) * config.color;
+      const b = 128 + 127 * mix(p1[2], p2[2]) * config.color;
+
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
       data[i + 3] = 255;
     }
   }
@@ -141,4 +165,3 @@ function animate() {
   requestAnimationFrame(animate);
 }
 animate();
-
