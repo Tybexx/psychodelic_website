@@ -9,13 +9,11 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-// UI toggle
+// UI
 document.getElementById("ui-toggle").addEventListener("click", () => {
   const panel = document.getElementById("config-panel");
   panel.style.display = (panel.style.display === "flex") ? "none" : "flex";
 });
-
-// Settings
 const themeSelect = document.getElementById("themeSelect");
 const speedSlider = document.getElementById("speedSlider");
 const colorSlider = document.getElementById("colorSlider");
@@ -38,12 +36,13 @@ function saveSettings() {
 );
 loadSettings();
 
-// Audio setup after user click
+// AUDIO
+const audio = document.getElementById("bgAudio");
 const startBtn = document.getElementById("startBtn");
 const introScreen = document.getElementById("intro-screen");
-const audio = document.getElementById("bgAudio");
 
-let analyser, dataArray, audioLevel = 0;
+let analyser, dataArray;
+let bass = 0, mids = 0, highs = 0;
 
 startBtn.addEventListener("click", async () => {
   introScreen.style.display = "none";
@@ -65,11 +64,14 @@ startBtn.addEventListener("click", async () => {
 function updateAudio() {
   if (!analyser) return;
   analyser.getByteFrequencyData(dataArray);
-  audioLevel = dataArray.reduce((a, b) => a + b, 0) / dataArray.length / 255;
+  const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length / 255;
+  bass = avg(dataArray.slice(0, 10));
+  mids = avg(dataArray.slice(10, 40));
+  highs = avg(dataArray.slice(40));
   requestAnimationFrame(updateAudio);
 }
 
-// Visual render
+// DRAW
 function animate() {
   time += 0.01 * parseFloat(speedSlider.value);
   const res = parseInt(resSlider.value);
@@ -89,37 +91,37 @@ function animate() {
       const dy = py - height / 2;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const angle = Math.atan2(dy, dx);
-
       let r = 0, g = 0, b = 0;
 
       switch (theme) {
         case "vortex":
-          r = 128 + 127 * Math.sin(dist * 0.02 - time + audioLevel * 10);
-          g = 128 + 127 * Math.cos(angle * 3 + time);
-          b = 128 + 127 * Math.sin(dist * 0.01 + time);
+          r = 128 + 127 * Math.sin(dist * (0.02 + bass * 0.05) - time);
+          g = 128 + 127 * Math.cos(angle * (3 + mids * 5) + time);
+          b = 128 + 127 * Math.sin(dist * (0.01 + highs * 0.03) + time);
           break;
         case "waves":
-          r = 128 + 127 * Math.sin(px * 0.01 + time + audioLevel * 3);
+          r = 128 + 127 * Math.sin(px * 0.01 + time + mids * 10);
           g = 128 + 127 * Math.sin(py * 0.01 + time * 1.5);
-          b = 128 + 127 * Math.sin((px + py) * 0.01 + time);
+          b = 128 + 127 * Math.sin((px + py) * 0.01 + time + bass * 3);
           break;
         case "plasma":
-          const v = Math.sin(px * 0.02 + time) + Math.sin(py * 0.02 + time);
-          r = 128 + 127 * Math.sin(v + time + audioLevel * 2);
+          const v = Math.sin(px * (0.02 + highs * 0.05) + time)
+                  + Math.sin(py * (0.02 + mids * 0.03) + time);
+          r = 128 + 127 * Math.sin(v + time + bass * 3);
           g = 128 + 127 * Math.sin(v + time * 1.3);
-          b = 128 + 127 * Math.sin(v + time * 1.6);
+          b = 128 + 127 * Math.sin(v + time * 1.6 + highs * 2);
           break;
         case "spiral":
-          let rad = Math.sqrt(dx * dx + dy * dy);
+          let rad = dist;
           let a = angle + time;
-          r = 128 + 127 * Math.sin(rad * 0.05 - a + audioLevel * 3);
+          r = 128 + 127 * Math.sin(rad * (0.05 + bass) - a + mids * 3);
           g = 128 + 127 * Math.cos(rad * 0.03 + a + time);
-          b = 128 + 127 * Math.sin(rad * 0.01 + a - time);
+          b = 128 + 127 * Math.sin(rad * 0.01 + a - time + highs * 2);
           break;
         case "netgrid":
-          r = 128 + 127 * Math.sin((px + py + time * 100) * 0.01 + audioLevel);
-          g = 128 + 127 * Math.sin((px - py + time * 50) * 0.01);
-          b = 128 + 127 * Math.cos((px * py + time * 25) * 0.00005);
+          r = 128 + 127 * Math.sin((px + py + time * 100) * 0.01 + bass * 3);
+          g = 128 + 127 * Math.sin((px - py + time * 50) * 0.01 + mids * 5);
+          b = 128 + 127 * Math.cos((px * py + time * 25) * 0.00005 + highs * 4);
           break;
       }
 
@@ -139,3 +141,4 @@ function animate() {
   requestAnimationFrame(animate);
 }
 animate();
+
